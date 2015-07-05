@@ -1,6 +1,6 @@
 {
   "name": "hamlibjs",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A Node.JS interface for sending command to rigctl",
   "main": "main.js",
   "scripts": {
