@@ -22,5 +22,8 @@
   "bugs": {
     "url": "https://github.com/dxxy/hamlibjs/issues"
   },
-  "homepage": "https://github.com/dxxy/hamlibjs#readme"
+  "homepage": "https://github.com/dxxy/hamlibjs#readme",
+  "dependencies": {
+    "promise": "^7.0.3"
+  }
 }
