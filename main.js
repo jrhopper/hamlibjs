@@ -21,29 +21,45 @@
 
           // Remote Method
           if(rig.remote){
+            // Create Command Process
+
+            // Create Event Listener
 
           }
 
           // Local Method
           else{
-            rig.conn.process = Child.fork('./rig.js', [JSON.stringify(opts)]);
-            rig.conn.sendCommand = function(message){
-              rig.conn.process.send(message);
-              return new Promise(function(fufill, reject){
-                var listener = function(m){
-                  if (typeof(m) !== 'undefined' && m.hasOwnProperty('cmd') && m.cmd == message.cmd){
-                    rig.conn.process.removeListener('message', listener);
-                    if(m.hasOwnProperty('err')){
-                      reject(m);
-                    }
-                    else{
-                      fufill(m);
-                    }
-                  }
-                };
-                rig.conn.process.on('message', listener);
-              });
-            }
+            // Create Command Process
+                rig.conn.process = Child.fork('./rig.js', [JSON.stringify(opts)]);
+                rig.conn.sendCommand = function(message){
+                  rig.conn.process.send(message);
+                  return new Promise(function(fufill, reject){
+                    var cmdlistener = function(m){
+                      if (typeof(m) !== 'undefined' && m.hasOwnProperty('cmd') && m.cmd == message.cmd){
+                        rig.conn.process.removeListener('message', cmdlistener);
+                        if(m.hasOwnProperty('err')){
+                          reject(m);
+                        }
+                        else{
+                          fufill(m);
+                        }
+                      }
+                    };
+                    rig.conn.process.on('message', cmdlistener);
+                  });
+                }
+
+            // Create Event Listener
+              var evtlistener = function(m){
+                if (typeof(m) !== 'undefined' && m.hasOwnProperty('event')){
+                  console.log(m);
+                  rig.emit(m.event, m);
+                }
+                else if (typeof(m) !== 'undefined' && m.hasOwnProperty('error')){
+                  rig.emit('error', m);
+                }
+              }
+              rig.conn.process.on('message', evtlistener);
           }
 
       /** Rig Methods **/
@@ -65,13 +81,16 @@
             rig.get_split_freq = function(){return rig.conn.sendCommand({"cmd" : "get_split_freq"})}
             rig.set_split_freq = function(xit){return rig.conn.sendCommand({"cmd" : "set_split_freq", "freq": freq})}
 
+        // TX
             rig.get_ptt = function(){return rig.conn.sendCommand({"cmd" : "get_ptt"})}
             rig.set_ptt = function(xit){return rig.conn.sendCommand({"cmd" : "set_ptt", "ptt": ptt})}
             rig.toggle_ptt = function(){return rig.conn.sendCommand({"cmd" : "toggle_ptt"})}
 
+        // FUNCTIONS
             rig.get_func = function(func){return rig.conn.sendCommand({"cmd" : "get_func", "func" : func})}
             rig.set_func = function(func, val){return rig.conn.sendCommand({"cmd" : "set_func", "func": func, "val" : val})}
 
+        // LEVEL
             rig.get_level = function(level){return rig.conn.sendCommand({"cmd" : "get_level", "level" : level})}
             rig.set_level = function(level, val){return rig.conn.sendCommand({"cmd" : "set_level", "level": level, "val" : val})}
 
@@ -91,8 +110,3 @@
     }
 
     var rigtest = new hamlib.rig({});
-    rigtest.get_frequency().done(function(m){
-      console.log(m);
-    }, function(err){
-      console.log(err);
-    });
