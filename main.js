@@ -30,12 +30,15 @@
           // Local Method
           else{
             // Create Command Process
+                var cmdnr = 1;
                 rig.conn.process = Child.fork('./rig.js', [JSON.stringify(opts)]);
                 rig.conn.sendCommand = function(message){
+                  message.cmdnr = cmdnr;
+                  cmdnr++;
                   rig.conn.process.send(message);
                   return new Promise(function(fufill, reject){
                     var cmdlistener = function(m){
-                      if (typeof(m) !== 'undefined' && m.hasOwnProperty('cmd') && m.cmd == message.cmd){
+                      if (typeof(m) !== 'undefined' && m.hasOwnProperty('cmdnr') && m.cmdnr == message.cmdnr){
                         rig.conn.process.removeListener('message', cmdlistener);
                         if(m.hasOwnProperty('err')){
                           reject(m);

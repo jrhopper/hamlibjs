@@ -10,10 +10,7 @@
 
   /** Init **/
         // Parse Config
-        var config = process.argv[2];
-            args = {
-              "-m" : "1"
-            }
+        var args = JSON.parse(process.argv[2]);
 
         // Connect to rigctl
           var child = require('child_process').spawn('rigctl', args);
@@ -112,15 +109,23 @@
             rigctl.get_level = function(opts){ return rigctl.command ('l '+opts.level)}
 
   /** Listen for Commands **/
+      var incomingCommands = [];
       process.on('message', function(m){
         if(typeof(m) !== 'undefined' && m.hasOwnProperty('cmd')){
-          rigctl[m.cmd](m).done(function(res){
-            res.cmd = m.cmd;
-            process.send(res);
-          },
-          function(err){
-            process.send('{cmd:"'+m.cmd+'",err:"'+err+'"}');
-          });
+          incomingCommands.push(function(){
+            return new Promise(function(success, fail){
+              rigctl[m.cmd](m).done(function(res){
+                res.cmd = m.cmd;
+                res.cmdnr = m.cmdnr;
+                process.send(res);
+                success();
+              },
+              function(err){
+                process.send('{cmd:"'+m.cmd+'",err:"'+err+'"}');
+                fail();
+              });
+            })
+          })
         }
       });
 
@@ -179,7 +184,8 @@
               })
             }
             else{
-              setTimeout(function(){poll(delay)},delay);
+              i=0;
+              incoming_command();
             }
           }
 
@@ -200,6 +206,22 @@
             }
           };
           func_poll();
+
+
+          var incoming_command = function(){
+              if(incomingCommands.length > 0){
+                incomingCommands[0]().done(function(){
+                  incomingCommands.shift();
+                  incoming_command();
+                }, function(){
+                  console.log("Command Error")
+                });
+              }
+              else{
+                setTimeout(function(){poll(delay)},delay);
+              }
+          };
+
         });
       }
-      poll(1000);
+      poll(500);
