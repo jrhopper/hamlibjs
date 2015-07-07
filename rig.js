@@ -17,7 +17,7 @@
 
         // Connect to rigctl
           var child = require('child_process').spawn('rigctl', args);
-          var onDataFunction = null;
+          var onDataFunction = function(){};
 
           // Stdout Listener
           var buf = "";
@@ -107,7 +107,7 @@
             rigctl.get_func = function(opts){ return rigctl.command ('u '+opts.func)}
 
         // LEVELS
-            rigctl.levels = ["PREAMP", "ATT", "VOX", "AF", "RF", "SQL", "IF", "APF", "NR", "PBT_IN", "PBT_OUT", "CWPITCH", "RFPOWER", "MICGAIN", "KEYSPD", "NOTCHF", "COMP", "AGC", "BKINDL", "BAL", "METER", "VOXGAIN", "ANTIVOX", "SLOPE_LOW", "SLOPE_HIGH", "RAWSTR", "SQLSTAT", "SWR", "ALC", "STRENGTH"]
+            rigctl.levels = ["PREAMP", "ATT", "VOX", "AF", "RF", "SQL", "IF", "APF", "NR", "PBT_IN", "PBT_OUT", "CWPITCH", "RFPOWER", "MICGAIN", "KEYSPD", "NOTCHF", "COMP", "AGC", "BKINDL", "BAL", "METER", "VOXGAIN", "ANTIVOX", "SLOPE_LOW", "SLOPE_HIGH", "RAWSTR", "SWR", "ALC", "STRENGTH"]
             rigctl.set_level = function(opts){ return rigctl.command ('L '+opts.level + ' '+opts.val)}
             rigctl.get_level = function(opts){ return rigctl.command ('l '+opts.level)}
 
@@ -129,13 +129,13 @@
 
       var poll_function = function(flag, method){
         return new Promise(function(fufill, reject){
-            method().done(function(res){
-              if (!cache.hasOwnProperty(flag) || cache[flag] != JSON.stringify(res)){
+            method.done(function(res){
+              if (!cache.hasOwnProperty(flag) || cache[flag] !== JSON.stringify(res)){
                 cache[flag] = JSON.stringify(res);
                 res.event = flag;
                 process.send(res);
-                fufill();
               }
+              fufill();
             },
             function(err){
               process.send({'error' : flag, "code" : err});
@@ -145,25 +145,61 @@
       }
 
       /* Rapid Polling for VFO, Frequency, Mode, ETC */
-      var rapid_poll = function(delay){
-        poll_function("frequencyChange", rigctl.get_frequency).then(function(){
-          return poll_function("modeChange", rigctl.get_mode);
+      var poll = function(delay){
+        (new Promise(function(s, f){
+          s();
+        })).then(function(){
+          return poll_function("freq", rigctl.get_frequency());
         }).then(function(){
-          return poll_function("vfoChange", rigctl.get_vfo);
+          return poll_function("mode", rigctl.get_mode());
         }).then(function(){
-          return poll_function("ritChange", rigctl.get_rit);
+          return poll_function("vfo", rigctl.get_vfo());
         }).then(function(){
-          return poll_function("xitChange", rigctl.get_xit);
+          return poll_function("rit", rigctl.get_rit());
         }).then(function(){
-          return poll_function("pttChange", rigctl.get_ptt);
+          return poll_function("xit", rigctl.get_xit());
         }).then(function(){
-          setInterval(rapid_poll,delay);
+          return poll_function("ptt", rigctl.get_ptt());
+        }).then(function(){
+          return poll_function("vfosplit", rigctl.get_split_vfo());
+        }).then(function(){
+          return poll_function("freqsplit", rigctl.get_split_freq());
+        }).done(function(){
+
+        // Poll Levels
+          var i = 0;
+          var level_poll = function(){
+            if(i < rigctl.levels.length){
+              poll_function("level_"+rigctl.levels[i], rigctl.get_level({"level" : rigctl.levels[i]})).done(function(){
+                i++;
+                level_poll();
+              },
+              function(){
+                console.log("Polling Error");
+              })
+            }
+            else{
+              setTimeout(function(){poll(delay)},delay);
+            }
+          }
+
+        // Poll Functions
+          var func_poll = function(){
+            if(i < rigctl.functions.length){
+              poll_function("func_"+rigctl.functions[i], rigctl.get_func({"func" : rigctl.functions[i]})).done(function(){
+                i++;
+                func_poll();
+              },
+              function(){
+                console.log("Polling Error");
+              })
+            }
+            else{
+              i=0;
+              level_poll();
+            }
+          };
+          func_poll();
         });
       }
-      rapid_poll(1000);
-
-      /* Delated Polling for other Settings **/
-      var rapid_poll = function(){
-
-      }
-      setInterval(rapid_poll, 5000);
+      poll(1000);
