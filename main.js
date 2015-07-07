@@ -107,5 +107,3 @@
     hamlib.server = function(){
 
     }
-
-    var rigtest = new hamlib.rig({});
