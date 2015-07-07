@@ -9,7 +9,6 @@
   var Promise = require('promise');
 
   /** Init **/
-        //TODO
         // Parse Config
         var config = process.argv[2];
             args = {
@@ -18,56 +17,61 @@
 
         // Connect to rigctl
           var child = require('child_process').spawn('rigctl', args);
-          var cmmd = function(command){
-            return new Promise(function(fufill, reject){
+          var onDataFunction = null;
 
-              var succeed = function(data){
-                child.stderr.removeListener('data', fail);
-                child.stdout.removeListener('data', succeed);
-                fufill(data);
-              }
-              child.stdout.on('data', succeed);
-
-              var fail = function(data){
-                child.stderr.removeListener('data', fail);
-                child.stdout.removeListener('data', succeed);
-                reject(data);
-              }
-              child.stderr.on('data', fail);
-
-              child.stdin.write(command+"\n");
-            });
-          }
-
-        // Handle Child Failures
-            var close = function(code){
-              if (code !== 0){
-                process.send({'error' : 'rigctl process exited unexpectedly.', "code" : err});
-              }
+          // Stdout Listener
+          var buf = "";
+          child.stdout.on('data', function(data){
+            if((data+"").indexOf("Rig command:") > 0){
+              buf = buf + data;
+              onDataFunction('success', buf);
+              buf = "";
             }
-            child.on('close', close);
+            else {
+              buf = buf + data;
+            }
+          });
+
+          // Stderr Listener
+          child.stderr.on('data', function(data){
+            onDataFunction('failure', data);
+          });
+
+          // Close Listener
+          child.on('close', function(){
+            if (code !== 0){
+              process.send({'error' : 'rigctl process exited unexpectedly.', "code" : err});
+            }
+          });
 
         // rigctl Command Function
           var rigctl={};
-          rigctl.command = function(command){return new Promise(function(fufill, reject){
-              cmmd(command).done(function(data){
-                 data = (data+"").replace(/^.*Rig command:.*$/mg, "").replace(/^\s*[\r\n]/gm, "").replace(/\n$/, "").toLowerCase();
-                 data = data.split('\n');
+          rigctl.command = function(command){
+              return new Promise(function(success, failure){
+                  onDataFunction = function(status, data){
 
-                 var resobj = {};
-                 for (var i = 0; i < data.length; i++){
-                   if (data[i].indexOf(":") > 0){
-                      var ln = data[i].split(':');
-                      resobj[ln[0].trim()] = ln[1].trim();
-                   }
-                 }
+                    if(status == 'success'){
+                      data = (data+"").replace(/^.*Rig command:.*$/mg, "").replace(/^\s*[\r\n]/gm, "").replace(/\n$/, "").toLowerCase();
+                      data = data.split('\n');
 
-                fufill(resobj);
-              },
-              function(err){
-                reject(err);
+                      var resobj = {};
+                      for (var i = 0; i < data.length; i++){
+                        if (data[i].indexOf(":") > 0){
+                           var ln = data[i].split(':');
+                           resobj[ln[0].trim()] = ln[1].trim();
+                        }
+                      }
+
+                      success(resobj);
+                    }
+                    else if (status == 'failure'){
+                      failure(data);
+                    }
+                  }
+
+                  child.stdin.write(command+"\n");
               });
-          })};
+          }
 
   /** Functions **/
         // VFO
@@ -142,9 +146,17 @@
 
       /* Rapid Polling for VFO, Frequency, Mode, ETC */
       var rapid_poll = function(delay){
-        poll_function("frequencyChange", rigctl.get_frequency).then(
-          poll_function("vfoChange", rigctl.get_vfo)
-        ).then(function(){
+        poll_function("frequencyChange", rigctl.get_frequency).then(function(){
+          return poll_function("modeChange", rigctl.get_mode);
+        }).then(function(){
+          return poll_function("vfoChange", rigctl.get_vfo);
+        }).then(function(){
+          return poll_function("ritChange", rigctl.get_rit);
+        }).then(function(){
+          return poll_function("xitChange", rigctl.get_xit);
+        }).then(function(){
+          return poll_function("pttChange", rigctl.get_ptt);
+        }).then(function(){
           setInterval(rapid_poll,delay);
         });
       }

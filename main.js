@@ -52,7 +52,6 @@
             // Create Event Listener
               var evtlistener = function(m){
                 if (typeof(m) !== 'undefined' && m.hasOwnProperty('event')){
-                  console.log(m);
                   rig.emit(m.event, m);
                 }
                 else if (typeof(m) !== 'undefined' && m.hasOwnProperty('error')){
